@@ -1,5 +1,15 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getCollection, insertItem } from '../_lib/redis.js';
+import { Redis } from '@upstash/redis';
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
+
+async function getCollection<T = any>(table: string): Promise<T[]> {
+  const data = await redis.get<T[]>(table);
+  return data || [];
+}
 
 const SETTINGS_KEY = 'singleton_settings_id';
 
@@ -33,7 +43,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         items.push(payload);
       }
 
-      const redis = (await import('../_lib/redis.js')).default;
       await redis.set('company_application_settings', items);
 
       return res.status(200).json(payload);

@@ -1,5 +1,26 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getCollection, insertItem, generateId } from '../_lib/redis.js';
+import { Redis } from '@upstash/redis';
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
+
+async function getCollection<T = any>(table: string): Promise<T[]> {
+  const data = await redis.get<T[]>(table);
+  return data || [];
+}
+
+async function insertItem<T extends { id: string }>(table: string, item: T): Promise<T> {
+  const items = await getCollection<T>(table);
+  items.unshift(item);
+  await redis.set(table, items);
+  return item;
+}
+
+function generateId(): string {
+  return crypto.randomUUID();
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');

@@ -1,5 +1,32 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getCollection, updateItem, deleteItem } from '../_lib/redis.js';
+import { Redis } from '@upstash/redis';
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
+
+async function getCollection<T = any>(table: string): Promise<T[]> {
+  const data = await redis.get<T[]>(table);
+  return data || [];
+}
+
+async function updateItem<T extends { id: string }>(table: string, id: string, updates: Partial<T>): Promise<T | null> {
+  const items = await getCollection<T>(table);
+  const index = items.findIndex(item => item.id === id);
+  if (index === -1) return null;
+  items[index] = { ...items[index], ...updates };
+  await redis.set(table, items);
+  return items[index];
+}
+
+async function deleteItem<T extends { id: string }>(table: string, id: string): Promise<boolean> {
+  const items = await getCollection<T>(table);
+  const filtered = items.filter(item => item.id !== id);
+  if (filtered.length === items.length) return false;
+  await redis.set(table, filtered);
+  return true;
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
