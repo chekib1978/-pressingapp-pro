@@ -7,8 +7,22 @@ const redis = new Redis({
 });
 
 async function getCollection<T = any>(table: string): Promise<T[]> {
-  const data = await redis.get<T[]>(table);
-  return data || [];
+  let data = await redis.get<T[]>(table);
+  if (typeof data === 'string') {
+    try { data = JSON.parse(data as string); } catch { data = []; }
+  }
+  return Array.isArray(data) ? data : [];
+}
+
+async function insertItem<T extends { id: string }>(table: string, item: T): Promise<T> {
+  const items = await getCollection<T>(table);
+  items.unshift(item);
+  await redis.set(table, JSON.stringify(items));
+  return item;
+}
+
+function generateId(): string {
+  return crypto.randomUUID();
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

@@ -7,8 +7,11 @@ const redis = new Redis({
 });
 
 async function getCollection<T = any>(table: string): Promise<T[]> {
-  const data = await redis.get<T[]>(table);
-  return data || [];
+  let data = await redis.get<T[]>(table);
+  if (typeof data === 'string') {
+    try { data = JSON.parse(data as string); } catch { data = []; }
+  }
+  return Array.isArray(data) ? data : [];
 }
 
 async function updateItem<T extends { id: string }>(table: string, id: string, updates: Partial<T>): Promise<T | null> {
@@ -16,7 +19,7 @@ async function updateItem<T extends { id: string }>(table: string, id: string, u
   const index = items.findIndex(item => item.id === id);
   if (index === -1) return null;
   items[index] = { ...items[index], ...updates };
-  await redis.set(table, items);
+  await redis.set(table, JSON.stringify(items));
   return items[index];
 }
 
@@ -24,7 +27,7 @@ async function deleteItem<T extends { id: string }>(table: string, id: string): 
   const items = await getCollection<T>(table);
   const filtered = items.filter(item => item.id !== id);
   if (filtered.length === items.length) return false;
-  await redis.set(table, filtered);
+  await redis.set(table, JSON.stringify(filtered));
   return true;
 }
 

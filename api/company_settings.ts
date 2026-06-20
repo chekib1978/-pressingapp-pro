@@ -7,8 +7,38 @@ const redis = new Redis({
 });
 
 async function getCollection<T = any>(table: string): Promise<T[]> {
-  const data = await redis.get<T[]>(table);
-  return data || [];
+  let data = await redis.get<T[]>(table);
+  if (typeof data === 'string') {
+    try { data = JSON.parse(data as string); } catch { data = []; }
+  }
+  return Array.isArray(data) ? data : [];
+}
+
+async function insertItem<T extends { id: string }>(table: string, item: T): Promise<T> {
+  const items = await getCollection<T>(table);
+  items.unshift(item);
+  await redis.set(table, JSON.stringify(items));
+  return item;
+}
+
+async function updateItem<T extends { id: string }>(table: string, id: string, updates: Partial<T>): Promise<T | null> {
+  const items = await getCollection<T>(table);
+  const existingIndex = items.findIndex((i: any) => i.id === id);
+
+  const payload = {
+    id,
+    updated_at: new Date().toISOString(),
+    ...updates,
+  };
+
+  if (existingIndex >= 0) {
+    items[existingIndex] = { ...items[existingIndex], ...payload };
+  } else {
+    items.push(payload as T);
+  }
+
+  await redis.set('company_application_settings', JSON.stringify(items));
+  return payload as T;
 }
 
 const SETTINGS_KEY = 'singleton_settings_id';
@@ -43,8 +73,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         items.push(payload);
       }
 
-      await redis.set('company_application_settings', items);
-
+      await redis.set('company_application_settings', JSON.stringify(items));
       return res.status(200).json(payload);
     }
 
