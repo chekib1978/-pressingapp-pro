@@ -270,29 +270,27 @@ const App: React.FC = () => {
     setIsLoading(true);
     setAppError(null);
     try {
-      const { data: userData, error: userError } = await db
-        .from('users')
-        .select('id, name, email, role, password, created_at')
-        .eq('email', email)
-        .single();
+      const API_BASE = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${API_BASE}/api/auth`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
 
-      if (userError || !userData) {
-        throw new Error("Email ou mot de passe incorrect.");
+      const userData = await res.json();
+
+      if (!res.ok) {
+        throw new Error(userData.error || "Email ou mot de passe incorrect.");
       }
-      
-      if (userData.password !== password) { 
-        throw new Error("Email ou mot de passe incorrect.");
-      }
-      
-      const { password: _dbPassword, ...userToStore } = userData as User & {password?: string};
-      setCurrentUser(userToStore);
+
+      setCurrentUser(userData as User);
       return true;
     } catch (error: any) {
       console.error("Login failed:", error);
       setAppError(error.message || "Échec de la connexion.");
       setCurrentUser(null);
     } finally {
-      setAuthChecked(true); 
+      setAuthChecked(true);
     }
     return false;
   }, [setAppError]);
