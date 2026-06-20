@@ -228,9 +228,9 @@ const App: React.FC = () => {
             email: COMPANY_DETAILS_DEFAULTS.email || null,
             receipt_footer_message: COMPANY_DETAILS_DEFAULTS.receiptFooterMessage || null,
           };
-          const { error: upsertError } = await supabase
-            .from('company_application_settings')
-            .upsert(defaultSettingsPayloadForSupabase, { onConflict: 'id' });
+          const { error: upsertError } = await db
+            .from('company_settings')
+            .upsert(defaultSettingsPayloadForSupabase);
           if (upsertError) throw upsertError;
           console.log("Paramètres par défaut insérés/mis à jour dans la base de données.");
         } catch (upsertError: any) {
@@ -270,9 +270,9 @@ const App: React.FC = () => {
     setIsLoading(true);
     setAppError(null);
     try {
-      const { data: userData, error: userError } = await supabase
+      const { data: userData, error: userError } = await db
         .from('users')
-        .select('id, name, email, role, password, created_at') 
+        .select('id, name, email, role, password, created_at')
         .eq('email', email)
         .single();
 
@@ -328,9 +328,9 @@ const App: React.FC = () => {
             receipt_footer_message: newSettings.receiptFooterMessage?.trim() || null,
         };
 
-        const { error } = await supabase
-            .from('company_application_settings')
-            .upsert(payloadForSupabase, { onConflict: 'id' });
+        const { error } = await db
+            .from('company_settings')
+            .upsert(payloadForSupabase);
         
         if (error) throw error; 
         
