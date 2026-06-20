@@ -6,49 +6,19 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
-const defaultUsers = [
-  {
-    id: '1',
-    name: 'Admin',
-    email: 'admin@pressing.com',
-    role: 'admin',
-    password: 'admin123',
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: '2',
-    name: 'Operateur',
-    email: 'op@pressing.com',
-    role: 'operator',
-    password: 'op123',
-    created_at: new Date().toISOString(),
-  },
-];
+const SUPABASE_URL = 'https://ozlomllrfwigrqmfgitr.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im96bG9tbGxyZndpZ3JxbWZnaXRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAwOTc4MjIsImV4cCI6MjA2NTY3MzgyMn0.bwKqFIQY2ZGTgzgrrSCm2R-j66hlMot6a-vQrdyqgu8';
 
-const defaultArticles = [
-  { id: '1', name: 'Pantalon - Jean', price: 15, category: 'Pantalon', created_at: new Date().toISOString() },
-  { id: '2', name: 'Chemise - Manches longues', price: 12, category: 'Chemise', created_at: new Date().toISOString() },
-  { id: '3', name: 'T-Shirt - Manches courtes', price: 8, category: 'TShirt', created_at: new Date().toISOString() },
-  { id: '4', name: 'Costume - 2 pieces', price: 35, category: 'Costume', created_at: new Date().toISOString() },
-  { id: '5', name: 'Robe - Simple', price: 18, category: 'Robe', created_at: new Date().toISOString() },
-];
-
-const defaultClients = [
-  { id: '1', name: 'Client Test', phone: '00 00 00 00 00', email: 'client@test.com', created_at: new Date().toISOString() },
-];
-
-const defaultSettings = [
-  {
-    id: 'singleton_settings_id',
-    name: 'Mon Pressing Super Pro',
-    address_line_1: '1 Rue du Progres',
-    address_line_2: '00000 MaVille',
-    phone: '00 00 00 00 00',
-    email: 'contact@monpressing.pro',
-    receipt_footer_message: 'Merci et a bientot !',
-    updated_at: new Date().toISOString(),
-  },
-];
+async function fetchSupabase(table: string): Promise<any[]> {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=*`, {
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+    },
+  });
+  if (!res.ok) return [];
+  return res.json();
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -61,19 +31,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    await redis.set('users', defaultUsers);
-    await redis.set('articles', defaultArticles);
-    await redis.set('clients', defaultClients);
-    await redis.set('orders', []);
-    await redis.set('operation_logs', []);
-    await redis.set('company_application_settings', defaultSettings);
+    const tables = ['users', 'articles', 'clients', 'orders', 'operation_logs', 'company_application_settings'];
+    const results: Record<string, number> = {};
+
+    for (const table of tables) {
+      const data = await fetchSupabase(table);
+      if (data.length > 0) {
+        await redis.set(table, data);
+        results[table] = data.length;
+      } else {
+        const existing = await redis.get(table);
+        results[table] = Array.isArray(existing) ? existing.length : 0;
+      }
+    }
 
     return res.status(200).json({
-      message: 'Seed completed!',
-      users: [
-        { email: 'admin@pressing.com', password: 'admin123', role: 'admin' },
-        { email: 'op@pressing.com', password: 'op123', role: 'operator' },
-      ],
+      message: 'Migration Supabase → Redis terminée !',
+      details: results,
     });
   } catch (error: any) {
     return res.status(500).json({ error: error.message || 'Internal server error' });
